@@ -12,16 +12,21 @@ import CoreLocation
 class FlutterBlePeripheralManager : NSObject {
     
     let stateChangedHandler: StateChangedHandler
-    var peripheralManager : CBPeripheralManager!
+    var peripheralManager: CBPeripheralManager?
+    private var initialized = false
     
     init(stateChangedHandler: StateChangedHandler) {
         self.stateChangedHandler = stateChangedHandler
         super.init()
-        peripheralManager = CBPeripheralManager(delegate: self, queue: nil, options: [CBPeripheralManagerOptionShowPowerAlertKey : true])
     }
     
-//    var peripheralData: NSDictionary!
-
+    func initialize() {
+        if !initialized {
+            peripheralManager = CBPeripheralManager(delegate: self, queue: nil, options: [CBPeripheralManagerOptionShowPowerAlertKey : true])
+            initialized = true
+        }
+    }
+    
     // min MTU before iOS 10
 //    var mtu: Int = 158 {
 //        didSet {
@@ -46,6 +51,9 @@ class FlutterBlePeripheralManager : NSObject {
 //    var txSubscriptions = Set<UUID>()
     
     func start(advertiseData: PeripheralData) {
+        if !initialized {
+            initialize()
+        }
         
         var dataToBeAdvertised: [String: Any]! = [:]
         if (advertiseData.uuid != nil) {
@@ -58,7 +66,7 @@ class FlutterBlePeripheralManager : NSObject {
         
         print("[flutter_ble_peripheral] start advertising data: \(String(describing: dataToBeAdvertised))")
         
-        peripheralManager.startAdvertising(dataToBeAdvertised)
+        peripheralManager?.startAdvertising(dataToBeAdvertised)
         
 //         TODO: Add service to advertise
 //        if peripheralManager.state == .poweredOn {
