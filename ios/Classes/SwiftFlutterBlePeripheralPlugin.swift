@@ -35,6 +35,9 @@ public class SwiftFlutterBlePeripheralPlugin: NSObject, FlutterPlugin {
     
     public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
         switch (call.method) {
+        case "initialize":
+            flutterBlePeripheralManager.initialize()
+            result(nil)
         case "start":
             startPeripheral(call, result)
         case "stop":
@@ -66,7 +69,7 @@ public class SwiftFlutterBlePeripheralPlugin: NSObject, FlutterPlugin {
     }
     
     private func stopPeripheral(_ result: @escaping FlutterResult) {
-        flutterBlePeripheralManager.peripheralManager.stopAdvertising()
+        flutterBlePeripheralManager.peripheralManager?.stopAdvertising()
         stateChangedHandler.publishPeripheralState(state: PeripheralState.idle)
         result(nil)
     }
