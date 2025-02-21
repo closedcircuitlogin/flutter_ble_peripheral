@@ -19,16 +19,21 @@ import 'package:flutter_ble_peripheral/src/models/peripheral_state.dart';
 
 class FlutterBlePeripheral {
   /// Singleton instance
-  static final FlutterBlePeripheral _instance =
-      FlutterBlePeripheral._internal();
+  static FlutterBlePeripheral? _instance;
 
   /// Singleton factory
   factory FlutterBlePeripheral() {
-    return _instance;
+    _instance ??= FlutterBlePeripheral._internal();
+    return _instance!;
   }
 
   /// Singleton constructor
   FlutterBlePeripheral._internal();
+
+  /// Initialize the plugin. This must be called before using any other methods.
+  static Future<void> initialize() async {
+    _instance ??= FlutterBlePeripheral._internal();
+  }
 
   /// Method Channel used to communicate state with
   static const MethodChannel _methodChannel =
@@ -189,7 +194,6 @@ class FlutterBlePeripheral {
   }
 
   // /// Returns Stream of data.
-  // ///
   // ///
   // Stream<Uint8List> getDataReceived() {
   //   return _dataReceivedEventChannel.receiveBroadcastStream().cast<Uint8List>();
