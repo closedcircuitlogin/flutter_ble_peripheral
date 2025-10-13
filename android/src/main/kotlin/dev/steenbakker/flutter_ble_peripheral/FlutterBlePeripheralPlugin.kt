@@ -144,6 +144,9 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
         }
     }
 
+    // Store original Bluetooth name so we can restore it after advertising
+    private var originalBluetoothName: String? = null
+
     private fun startPeripheral(call: MethodCall, result: MethodChannel.Result) {
 
         if (call.arguments !is Map<*, *>) {
@@ -151,6 +154,28 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
         }
 
         val arguments = call.arguments as Map<*, *>
+
+        // CRITICAL FIX: Handle localName by temporarily changing device Bluetooth name
+        // This is the only way iOS can see the localName in BLE advertisements
+        val localName = arguments["localName"] as String?
+        if (localName != null && localName.isNotEmpty()) {
+            try {
+                val bluetoothAdapter = flutterBlePeripheralManager?.mBluetoothManager?.adapter
+                if (bluetoothAdapter != null) {
+                    // Save original name so we can restore it later
+                    originalBluetoothName = bluetoothAdapter.name
+                    Log.i(tag, "Saving original Bluetooth name: $originalBluetoothName")
+                    
+                    // Temporarily set device name to localName
+                    bluetoothAdapter.name = localName
+                    Log.i(tag, "Changed Bluetooth name to: $localName")
+                }
+            } catch (e: SecurityException) {
+                Log.w(tag, "Failed to change Bluetooth name (missing permission?): ${e.message}")
+            } catch (e: Exception) {
+                Log.w(tag, "Failed to change Bluetooth name: ${e.message}")
+            }
+        }
 
         // First build main advertise data.
         val advertiseData: AdvertiseData.Builder = AdvertiseData.Builder()
@@ -162,7 +187,15 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
 
         (arguments["serviceUuid"] as String?)?.let { advertiseData.addServiceUuid(ParcelUuid(UUID.fromString(it))) }
         //TODO: addTransportDiscoveryData
-        (arguments["includeDeviceName"] as Boolean?)?.let { advertiseData.setIncludeDeviceName(it) }
+        
+        // If localName was provided, force includeDeviceName to true so it broadcasts
+        val shouldIncludeName = if (localName != null && localName.isNotEmpty()) {
+            true
+        } else {
+            (arguments["includeDeviceName"] as Boolean?) ?: false
+        }
+        advertiseData.setIncludeDeviceName(shouldIncludeName)
+        
         (arguments["transmissionPowerIncluded"] as Boolean?)?.let {
             advertiseData.setIncludeTxPowerLevel(it)
         }
@@ -285,6 +318,23 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
         if (advertisingSetCallback != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O ) {
             flutterBlePeripheralManager?.stopSet(advertisingSetCallback!!)
         }
+        
+        // CRITICAL: Restore original Bluetooth name after stopping advertising
+        if (originalBluetoothName != null) {
+            try {
+                val bluetoothAdapter = flutterBlePeripheralManager?.mBluetoothManager?.adapter
+                if (bluetoothAdapter != null) {
+                    bluetoothAdapter.name = originalBluetoothName
+                    Log.i(tag, "Restored original Bluetooth name: $originalBluetoothName")
+                    originalBluetoothName = null
+                }
+            } catch (e: SecurityException) {
+                Log.w(tag, "Failed to restore Bluetooth name (missing permission?): ${e.message}")
+            } catch (e: Exception) {
+                Log.w(tag, "Failed to restore Bluetooth name: ${e.message}")
+            }
+        }
+        
         result.success(Ready.ordinal)
     }
 
