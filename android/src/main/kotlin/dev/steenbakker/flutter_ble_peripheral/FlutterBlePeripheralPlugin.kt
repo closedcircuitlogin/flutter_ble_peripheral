@@ -47,6 +47,7 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
     private var flutterBlePeripheralManager: FlutterBlePeripheralManager? = null
     private var context: Context? = null
     private var activityBinding: ActivityPluginBinding? = null
+    private var originalBluetoothName: String? = null
 
     override fun onAttachedToEngine(flutterPluginBinding: FlutterPlugin.FlutterPluginBinding) {
         methodChannel = MethodChannel(flutterPluginBinding.binaryMessenger, "dev.steenbakker.flutter_ble_peripheral/ble_state")
@@ -169,19 +170,29 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
 
         // Build advertise response data if provided
         var advertiseResponseData: AdvertiseData.Builder? = null
-        if ((arguments["responsemanufacturerData"] as ByteArray?) != null || (arguments["responseserviceDataUuid"] as ByteArray?) != null || (arguments["responseserviceUuid"] as String?) != null) {
+        if ((arguments["responsemanufacturerData"] as ArrayList<*>?) != null || (arguments["responseserviceData"] as ArrayList<*>?) != null || (arguments["responseserviceUuid"] as String?) != null || (arguments["responselocalName"] as String?) != null) {
             advertiseResponseData = AdvertiseData.Builder()
-            (arguments["responsemanufacturerData"] as ByteArray?)?.let { advertiseData.addManufacturerData((arguments["responsemanufacturerId"] as Int), it) }
-            (arguments["responseserviceData"] as ByteArray?).let { advertiseData.addServiceData(ParcelUuid(UUID.fromString(arguments["responseserviceDataUuid"] as String)), it) }
+            (arguments["responsemanufacturerData"] as ArrayList<*>?)?.let { list -> advertiseResponseData.addManufacturerData((arguments["responsemanufacturerId"] as Int), list.map { (it as Int).toByte() }.toByteArray()) }
+            (arguments["responseserviceData"] as ArrayList<*>?)?.let { list -> advertiseResponseData.addServiceData(ParcelUuid(UUID.fromString(arguments["responseserviceDataUuid"] as String)), list.map { (it as Int).toByte() }.toByteArray()) }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
-                (arguments["responseserviceSolicitationUuid"] as String?)?.let { advertiseData.addServiceSolicitationUuid(
+                (arguments["responseserviceSolicitationUuid"] as String?)?.let { advertiseResponseData.addServiceSolicitationUuid(
                         ParcelUuid(UUID.fromString(it))) }
 
-            (arguments["responseserviceUuid"] as String?)?.let { advertiseData.addServiceUuid(ParcelUuid(UUID.fromString(it))) }
+            (arguments["responseserviceUuid"] as String?)?.let { advertiseResponseData.addServiceUuid(ParcelUuid(UUID.fromString(it))) }
             //TODO: addTransportDiscoveryData
-            (arguments["responseincludeDeviceName"] as Boolean?)?.let { advertiseData.setIncludeDeviceName(it) }
-            (arguments["responsetransmissionPowerIncluded"] as Boolean?)?.let {
-                advertiseData.setIncludeTxPowerLevel(it)
+            (arguments["responseincludeDeviceName"] as Boolean?)?.let { advertiseResponseData.setIncludeDeviceName(it) }
+            // Handle localName in scan response by temporarily changing device BT name
+            (arguments["responselocalName"] as String?)?.let { localName ->
+                try {
+                    val bluetoothAdapter = flutterBlePeripheralManager?.mBluetoothManager?.adapter
+                    if (bluetoothAdapter != null && originalBluetoothName == null) {
+                        originalBluetoothName = bluetoothAdapter.name
+                        bluetoothAdapter.name = localName
+                        advertiseResponseData.setIncludeDeviceName(true) // Include the temp name
+                    }
+                } catch (e: Exception) {
+                    Log.w(tag, "Failed to set localName for scan response: ${e.message}")
+                }
             }
         }
 
@@ -285,6 +296,19 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
         if (advertisingSetCallback != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O ) {
             flutterBlePeripheralManager?.stopSet(advertisingSetCallback!!)
         }
+        
+        // Restore original Bluetooth name if it was changed
+        if (originalBluetoothName != null) {
+            try {
+                val bluetoothAdapter = flutterBlePeripheralManager?.mBluetoothManager?.adapter
+                bluetoothAdapter?.name = originalBluetoothName
+                Log.i(tag, "Restored Bluetooth name: $originalBluetoothName")
+                originalBluetoothName = null
+            } catch (e: Exception) {
+                Log.w(tag, "Failed to restore Bluetooth name: ${e.message}")
+            }
+        }
+        
         result.success(Ready.ordinal)
     }
 
