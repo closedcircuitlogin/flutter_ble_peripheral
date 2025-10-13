@@ -192,8 +192,8 @@ class FlutterBlePeripheral {
   Stream<PeripheralState>? get onPeripheralStateChanged {
     if (Platform.isWindows) return null;
     _peripheralState ??= _stateChangedEventChannel.receiveBroadcastStream().map(
-          (dynamic event) => PeripheralState.values[event as int],
-        );
+      (dynamic event) => PeripheralState.values[event as int],
+    );
     return _peripheralState!;
   }
 
