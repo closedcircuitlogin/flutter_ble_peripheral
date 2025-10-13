@@ -36,8 +36,9 @@ class FlutterBlePeripheral {
   }
 
   /// Method Channel used to communicate state with
-  static const MethodChannel _methodChannel =
-      MethodChannel('dev.steenbakker.flutter_ble_peripheral/ble_state');
+  static const MethodChannel _methodChannel = MethodChannel(
+    'dev.steenbakker.flutter_ble_peripheral/ble_state',
+  );
 
   /// Event Channel for MTU state
   final EventChannel _mtuChangedEventChannel = const EventChannel(
@@ -94,15 +95,17 @@ class FlutterBlePeripheral {
     }
 
     if (advertiseResponseData != null) {
-      final json = advertiseData.toJson();
+      final json = advertiseResponseData
+          .toJson(); // FIX: was advertiseData, should be advertiseResponseData!
       for (final key in json.keys) {
         parameters['response$key'] = json[key];
       }
-      parameters.addAll(advertiseData.toJson());
     }
 
-    final response =
-        await _methodChannel.invokeMethod<int>('start', parameters);
+    final response = await _methodChannel.invokeMethod<int>(
+      'start',
+      parameters,
+    );
     return response == null
         ? BluetoothPeripheralState.unknown
         : BluetoothPeripheralState.values[response];
@@ -149,8 +152,9 @@ class FlutterBlePeripheral {
 
   Future<BluetoothPeripheralState> requestPermission() async {
     if (!Platform.isAndroid) return BluetoothPeripheralState.unknown;
-    final response =
-        await _methodChannel.invokeMethod<int>('requestPermission');
+    final response = await _methodChannel.invokeMethod<int>(
+      'requestPermission',
+    );
     return response == null
         ? BluetoothPeripheralState.unknown
         : BluetoothPeripheralState.values[response];
@@ -187,9 +191,9 @@ class FlutterBlePeripheral {
   /// After listening to this Stream, you'll be notified about changes in peripheral state.
   Stream<PeripheralState>? get onPeripheralStateChanged {
     if (Platform.isWindows) return null;
-    _peripheralState ??= _stateChangedEventChannel
-        .receiveBroadcastStream()
-        .map((dynamic event) => PeripheralState.values[event as int]);
+    _peripheralState ??= _stateChangedEventChannel.receiveBroadcastStream().map(
+      (dynamic event) => PeripheralState.values[event as int],
+    );
     return _peripheralState!;
   }
 
